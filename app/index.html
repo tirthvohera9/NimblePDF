@@ -45,6 +45,9 @@
       [data-theme="dark"] .toast { background: #f2f2f4; color: #1d1d1f; }
       .theme-button { border: 1px solid var(--line); background: transparent; border-radius: 9px; width: 32px; height: 32px; color: var(--muted); font-size: 16px; display: grid; place-items: center; }
       .theme-button:hover { color: var(--violet); background: var(--violet-soft); }
+      .preview-modal { width: min(900px, calc(100% - 24px)); height: min(760px, calc(100% - 24px)); border: 0; border-radius: 16px; padding: 25px; box-shadow: 0 20px 70px #26222f33; color: var(--ink); }
+      .preview-modal iframe { width: 100%; height: calc(100% - 56px); border: 1px solid var(--line); border-radius: 10px; background: #eee; }
+      .preview-modal::backdrop { background: #1e1b2733; backdrop-filter: blur(4px); }
     </style>
   </head>
   <body>
@@ -62,6 +65,8 @@
             <button type="button" class="tool-item" data-tool="summarize"><span class="tool-icon blue">≡</span><span><strong>Summarize</strong><small>Understand the key points</small></span><span>→</span></button>
             <button type="button" class="tool-item" data-tool="merge"><span class="tool-icon peach">＋</span><span><strong>Merge files</strong><small>Combine into one PDF</small></span><span>→</span></button>
             <button type="button" class="tool-item" data-tool="split"><span class="tool-icon mint">⌗</span><span><strong>Split pages</strong><small>Extract the pages you need</small></span><span>→</span></button>
+            <button type="button" class="tool-item" data-tool="rotate"><span class="tool-icon violet">↻</span><span><strong>Rotate pages</strong><small>Correct page orientation</small></span><span>→</span></button>
+            <button type="button" class="tool-item" data-tool="sanitize-metadata"><span class="tool-icon mint">✓</span><span><strong>Sanitize metadata</strong><small>Remove document metadata</small></span><span>→</span></button>
             <div class="menu-foot">More tools are coming soon</div>
           </div>
         </div>
@@ -84,6 +89,7 @@
           </div>
           <div class="composer-wrap">
             <form class="composer" id="command-form">
+              <div class="drop-hint" id="drop-hint" aria-hidden="true">Drop PDFs to inspect locally</div>
               <button class="attach-button" type="button" id="browse-button" aria-label="Attach files" title="Attach files">＋</button>
               <input id="file-input" type="file" accept=".pdf,application/pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" multiple hidden />
               <label class="sr-only" for="goal-input">Tell Nimble what to do</label>
@@ -109,6 +115,7 @@
       <footer class="footer"><span>NimblePDF <b>·</b> local-first document workspace</span><button type="button" class="privacy-link" id="privacy-button">How privacy works</button></footer>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
       <dialog id="privacy-dialog" class="modal"><button class="modal-close" type="button" aria-label="Close">×</button><p class="eyebrow">Privacy by default</p><h2>Your files stay here.</h2><p>Files are read as browser <code>File</code> objects and inspected in memory. NimblePDF does not upload, persist, or modify your original document.</p><div class="privacy-checks"><span>Network requests</span><strong>0</strong><span>Bytes read</span><strong id="privacy-bytes">0 B</strong><span>Original changed</span><strong>No</strong></div></dialog>
+      <dialog id="preview-dialog" class="preview-modal"><button class="modal-close preview-close" type="button" aria-label="Close">×</button><p class="eyebrow">Local preview</p><h2 id="preview-title">Document preview</h2><iframe id="preview-frame" title="PDF preview"></iframe></dialog>
     </div>
     <script type="module" src="/app/app.js"></script>
   </body>

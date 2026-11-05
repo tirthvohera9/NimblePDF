@@ -17,6 +17,7 @@ Then visit [http://localhost:8080](http://localhost:8080).
 - Responsive dashboard layout with PDF drop zone and file picker
 - Local-only inspection queue with metadata and per-file health findings
 - Health summary derived from inspected files (not a placeholder status)
+- Verified local merge, split, and rotate downloads through the loopback server
 - Loading, success, error, empty, and unavailable-action states
 - Keyboard-accessible upload area and responsive mobile layout
 - No build step, dependencies, uploads, or external runtime services

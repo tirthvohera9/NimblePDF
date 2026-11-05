@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import base64
+import hashlib
 import mimetypes
 import ntpath
 import re
@@ -12,11 +14,14 @@ from urllib.parse import urlparse
 
 from intelligence import parse_workflow_intent, recommend_pdf_health
 from security.files import FileLimits
+from pdf_ops import PdfOperationError, analyze, merge, result, sanitize_metadata, transform
 
 ROOT = Path(__file__).resolve().parent
 MAX_BYTES = FileLimits().max_bytes
-MAX_REQUEST_BYTES = 1024 * 1024
+MAX_REQUEST_BYTES = 70 * 1024 * 1024
 MAX_GOAL_LENGTH = 500
+MAX_OPERATION_BYTES = 50 * 1024 * 1024
+MAX_ANALYZE_BYTES = 20 * 1024 * 1024
 
 
 def api_error(code: str, message: str) -> dict:
@@ -130,6 +135,64 @@ def plan_payload(body: dict) -> tuple[int, dict]:
     }
 
 
+def operation_payload(body: dict) -> tuple[int, dict]:
+    if not isinstance(body, dict):
+        return 400, api_error("INVALID_BODY", "Request body must be a JSON object.")
+    operation = body.get("operation")
+    if operation not in {"merge", "split", "rotate", "sanitize-metadata"}:
+        return 400, api_error("UNSUPPORTED_OPERATION", "operation must be merge, split, rotate, or sanitize-metadata.")
+    raw_files = body.get("files")
+    if not isinstance(raw_files, list) or not raw_files:
+        return 400, api_error("INVALID_FILES", "files must be a non-empty array.")
+    documents: list[tuple[str, bytes]] = []
+    total_bytes = 0
+    try:
+        for item in raw_files:
+            if not isinstance(item, dict) or not isinstance(item.get("name"), str) or not isinstance(item.get("data"), str):
+                return 400, api_error("INVALID_FILE", "Each file requires a name and base64 data.")
+            name = item["name"].strip()
+            data = base64.b64decode(item["data"], validate=True)
+            total_bytes += len(data)
+            if not name.lower().endswith(".pdf"):
+                return 400, api_error("INVALID_FILE", "Only PDF files are supported.")
+            documents.append((name, data))
+    except (ValueError, base64.binascii.Error):
+        return 400, api_error("INVALID_FILE", "File data must be valid base64.")
+    if total_bytes > MAX_OPERATION_BYTES:
+        return 413, api_error("FILE_TOO_LARGE", "Combined operation input exceeds the 50 MB local limit.")
+    try:
+        if operation == "merge":
+            output = merge(data for _, data in documents)
+            output_name = "nimblepdf-merged.pdf"
+        elif operation == "sanitize-metadata":
+            output = sanitize_metadata(documents[0][1])
+            output_name = "nimblepdf-sanitized.pdf"
+        else:
+            pages = body.get("pages")
+            if not isinstance(pages, list) or any(isinstance(page, bool) or not isinstance(page, int) for page in pages):
+                return 400, api_error("INVALID_PAGES", "pages must be an array of page numbers.")
+            output = transform(documents[0][1], operation, pages, body.get("degrees", 90))
+            output_name = f"nimblepdf-{operation}.pdf"
+        return 200, {"operation": operation, "verified": True, "output": result(output, output_name)}
+    except PdfOperationError as exc:
+        return 422, api_error(exc.code, str(exc))
+
+
+def analyze_payload(body: dict) -> tuple[int, dict]:
+    if not isinstance(body, dict) or not isinstance(body.get("name"), str) or not isinstance(body.get("data"), str):
+        return 400, api_error("INVALID_FILE", "name and base64 data are required.")
+    try:
+        data = base64.b64decode(body["data"], validate=True)
+    except (ValueError, base64.binascii.Error):
+        return 400, api_error("INVALID_FILE", "File data must be valid base64.")
+    if len(data) > MAX_ANALYZE_BYTES:
+        return 413, api_error("FILE_TOO_LARGE", "Analysis input exceeds the 20 MB local limit.")
+    try:
+        return 200, {"name": body["name"], "sha256": hashlib.sha256(data).hexdigest(), "analysis": analyze(data)}
+    except PdfOperationError as exc:
+        return 422, api_error(exc.code, str(exc))
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, status: int, payload: object, content_type: str = "application/json") -> None:
         data = payload if isinstance(payload, bytes) else (
@@ -141,6 +204,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy", "default-src 'self'; frame-src blob:; object-src blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'")
+        self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(data)
@@ -156,11 +222,21 @@ class Handler(BaseHTTPRequestHandler):
                     {"name": "health", "method": "GET", "path": "/api/health"},
                     {"name": "plan", "method": "POST", "path": "/api/plan"},
                     {"name": "run", "method": "POST", "path": "/api/run"},
+                    {"name": "operate", "method": "POST", "path": "/api/operate"},
+                    {"name": "analyze", "method": "POST", "path": "/api/analyze"},
                 ],
                 "states": ["loading", "error", "success"],
                 "plan": {
                     "request": {"input": "object", "goal": "string", "maxSteps": "integer"},
                     "response": {"intent": "object", "steps": "array", "totalEstimate": "number"},
+                },
+                "operate": {
+                    "request": {"operation": "merge|split|rotate|sanitize-metadata", "files": "base64 PDF array", "pages": "integer array"},
+                    "response": {"verified": "boolean", "output": "base64 PDF with sha256"},
+                },
+                "analyze": {
+                    "request": {"name": "string", "data": "base64 PDF"},
+                    "response": {"analysis": "text and accessibility checks"},
                 },
             })
         if path in ("/", "/index.html"):
@@ -181,7 +257,7 @@ class Handler(BaseHTTPRequestHandler):
         self.do_GET()
 
     def do_POST(self) -> None:
-        if urlparse(self.path).path not in ("/api/plan", "/api/run"):
+        if urlparse(self.path).path not in ("/api/plan", "/api/run", "/api/operate", "/api/analyze"):
             return self._send(404, {"error": "Not found"})
         try:
             raw_length = self.headers.get("Content-Length")
@@ -193,6 +269,12 @@ class Handler(BaseHTTPRequestHandler):
             if "application/json" not in self.headers.get_content_type().lower():
                 return self._send(415, api_error("UNSUPPORTED_MEDIA_TYPE", "Content-Type must be application/json."))
             body = json.loads(self.rfile.read(length).decode("utf-8"))
+            if urlparse(self.path).path == "/api/analyze":
+                status, payload = analyze_payload(body)
+                return self._send(status, payload)
+            if urlparse(self.path).path == "/api/operate":
+                status, payload = operation_payload(body)
+                return self._send(status, payload)
             status, payload = plan_payload(body)
             if urlparse(self.path).path == "/api/run":
                 if status != 200:
