@@ -26,11 +26,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-git diff --quiet
-set "unstaged=%errorlevel%"
-git diff --cached --quiet
-set "staged=%errorlevel%"
-if "%unstaged%"=="0" if "%staged%"=="0" (
+for /f "delims=" %%A in ('git status --porcelain') do set "has_changes=1"
+if not defined has_changes (
     echo No changes to upload.
     pause
     exit /b 0
@@ -42,7 +39,7 @@ if not defined message set "message=Update NimblePDF"
 
 echo.
 echo Staging changes...
-git add .
+git add -A
 if errorlevel 1 (
     echo Failed to stage changes.
     pause

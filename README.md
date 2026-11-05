@@ -23,15 +23,16 @@ the loopback interface only.
 - Downloadable evidence receipts containing metadata, findings, and privacy attestations
 - Verified local merge, split, and rotate operations through the loopback server
 - Verified metadata sanitization, local text analysis, accessibility preflight, and browser previews
+- Local OCR for scanned pages using Tesseract and Poppler
+- Rasterized, verified term redaction that removes the original text layer
 - Deterministic health findings
 - Local workflow intent parsing and plan preview API
 - File validation and redaction-safety contracts
 - QA smoke-test and acceptance checklist
 
 The engine intentionally reports unsupported capabilities explicitly instead of
-pretending that a visual overlay is secure redaction. OCR and secure content
-redaction remain gated because this machine has no OCR/raster engine; metadata
-sanitization is available and verified.
+pretending that a visual overlay is secure redaction. OCR and rasterized term redaction require the local Tesseract and Poppler
+installations listed in `requirements.txt` and the setup command below.
 
 ## Limits
 
@@ -42,3 +43,10 @@ operation payloads are sent only to the loopback server at `127.0.0.1`.
 
 Run `.\package.ps1` once, then launch `.\run-nimblepdf.bat`. No account,
 external API, or cloud upload is required.
+
+The Windows setup also installs the local engines:
+
+```powershell
+winget install --id UB-Mannheim.TesseractOCR --source winget
+winget install --id oschwartz10612.Poppler --source winget
+```

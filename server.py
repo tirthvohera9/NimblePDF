@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 from intelligence import parse_workflow_intent, recommend_pdf_health
 from security.files import FileLimits
 from pdf_ops import PdfOperationError, analyze, merge, result, sanitize_metadata, transform
+from ocr_ops import ocr_pdf, redact_terms
 
 ROOT = Path(__file__).resolve().parent
 MAX_BYTES = FileLimits().max_bytes
@@ -139,8 +140,8 @@ def operation_payload(body: dict) -> tuple[int, dict]:
     if not isinstance(body, dict):
         return 400, api_error("INVALID_BODY", "Request body must be a JSON object.")
     operation = body.get("operation")
-    if operation not in {"merge", "split", "rotate", "sanitize-metadata"}:
-        return 400, api_error("UNSUPPORTED_OPERATION", "operation must be merge, split, rotate, or sanitize-metadata.")
+    if operation not in {"merge", "split", "rotate", "sanitize-metadata", "ocr", "redact"}:
+        return 400, api_error("UNSUPPORTED_OPERATION", "operation must be merge, split, rotate, sanitize-metadata, ocr, or redact.")
     raw_files = body.get("files")
     if not isinstance(raw_files, list) or not raw_files:
         return 400, api_error("INVALID_FILES", "files must be a non-empty array.")
@@ -167,6 +168,15 @@ def operation_payload(body: dict) -> tuple[int, dict]:
         elif operation == "sanitize-metadata":
             output = sanitize_metadata(documents[0][1])
             output_name = "nimblepdf-sanitized.pdf"
+        elif operation == "ocr":
+            output = ocr_pdf(documents[0][1])
+            output_name = "nimblepdf-ocr.pdf"
+        elif operation == "redact":
+            terms = body.get("terms")
+            if not isinstance(terms, list):
+                return 400, api_error("INVALID_REDACTION_TERMS", "terms must be an array of strings.")
+            output = redact_terms(documents[0][1], terms)
+            output_name = "nimblepdf-redacted.pdf"
         else:
             pages = body.get("pages")
             if not isinstance(pages, list) or any(isinstance(page, bool) or not isinstance(page, int) for page in pages):
@@ -231,7 +241,7 @@ class Handler(BaseHTTPRequestHandler):
                     "response": {"intent": "object", "steps": "array", "totalEstimate": "number"},
                 },
                 "operate": {
-                    "request": {"operation": "merge|split|rotate|sanitize-metadata", "files": "base64 PDF array", "pages": "integer array"},
+                    "request": {"operation": "merge|split|rotate|sanitize-metadata|ocr|redact", "files": "base64 PDF array", "pages": "integer array", "terms": "string array"},
                     "response": {"verified": "boolean", "output": "base64 PDF with sha256"},
                 },
                 "analyze": {

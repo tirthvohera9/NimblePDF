@@ -108,17 +108,24 @@ async function executeOperation(operation, prompt) {
     addMessage("Merge needs at least two inspected PDFs. Attach another file and try again.");
     return;
   }
-  if ((operation === "split" || operation === "rotate" || operation === "sanitize-metadata") && ready.length !== 1) {
+  if ((operation === "split" || operation === "rotate" || operation === "sanitize-metadata" || operation === "ocr" || operation === "redact") && ready.length !== 1) {
     addMessage(`${operation[0].toUpperCase() + operation.slice(1)} works on one inspected PDF at a time. Keep one file attached and specify pages, for example “${operation} pages 1-3”.`);
     return;
   }
-  const pages = operation === "merge" || operation === "sanitize-metadata" ? null : requestedPages(prompt);
+  const pages = operation === "merge" || operation === "sanitize-metadata" || operation === "ocr" || operation === "redact" ? null : requestedPages(prompt);
   if ((operation === "split" || operation === "rotate") && !pages?.length) {
     addMessage(`Tell me which pages to ${operation}, for example “${operation} pages 1-3”. I will verify the range before creating anything.`);
     return;
   }
   const degreesMatch = prompt.match(/(?:rotate|turn).*?(\d{2,3})\s*(?:degrees|°)?/i);
   const degrees = degreesMatch ? Number(degreesMatch[1]) : 90;
+  const terms = operation === "redact"
+    ? prompt.replace(/^.*?\b(?:redact|remove|hide)\b/i, "").split(/,| and /i).map((term) => term.replace(/^["']|["']$/g, "").trim()).filter(Boolean)
+    : null;
+  if (operation === "redact" && !terms?.length) {
+    addMessage("Tell me what to redact, for example: “redact Alice@example.com and 555-1234”.");
+    return;
+  }
   try {
     showToast(`Running verified ${operation} locally…`);
     const response = await fetch("/api/operate", {
@@ -129,6 +136,7 @@ async function executeOperation(operation, prompt) {
         files: await Promise.all(ready.map(async (job) => ({ name: job.name, data: await encodeFile(job.file) }))),
         ...(pages ? { pages } : {}),
         ...(operation === "rotate" ? { degrees } : {}),
+        ...(terms ? { terms } : {}),
       }),
     });
     const payload = await response.json();
@@ -191,7 +199,7 @@ async function runPrompt(text) {
   if (selectedTool === "inspect") {
     const ready = jobs.filter((job) => job.report);
     addMessage(ready.length ? `I’ve inspected ${ready.length} file${ready.length === 1 ? "" : "s"} locally. The findings are shown below.` : "I’m still reading your files locally. I’ll share the findings here when they’re ready.");
-  } else if (["merge", "split", "rotate", "sanitize-metadata"].includes(selectedTool)) {
+  } else if (["merge", "split", "rotate", "sanitize-metadata", "ocr", "redact"].includes(selectedTool)) {
     await executeOperation(selectedTool, prompt);
   } else if (selectedTool === "summarize") {
     const ready = jobs.filter((job) => job.report && job.file);
