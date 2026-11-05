@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="NimblePDF — a calm, local-first workspace for working with documents." />
+    <title>NimblePDF — document workspace</title>
+    <link rel="stylesheet" href="/app/styles.css" />
+    <style>
+      :root { color-scheme: light; }
+      [data-theme="dark"] {
+        color-scheme: dark;
+        --ink: #f3f3f5; --muted: #a5a5ad; --line: #303038; --paper: #171719;
+        --card: #202023; --violet: #a69cff; --violet-soft: #29264a;
+        --blue: #202d42; --peach: #3a2825; --mint: #1f382c;
+      }
+      [data-theme="dark"] body { background: var(--paper); }
+      [data-theme="dark"] .topbar { border-color: var(--line); }
+      [data-theme="dark"] .brand-mark,
+      [data-theme="dark"] .message-avatar,
+      [data-theme="dark"] .welcome-icon { background: var(--violet-soft); }
+      [data-theme="dark"] .tool-trigger,
+      [data-theme="dark"] .tool-menu,
+      [data-theme="dark"] .suggestions button,
+      [data-theme="dark"] .composer,
+      [data-theme="dark"] .job,
+      [data-theme="dark"] .status-card { background: var(--card); border-color: var(--line); }
+      [data-theme="dark"] .tool-trigger,
+      [data-theme="dark"] .composer { box-shadow: none; }
+      [data-theme="dark"] .tool-item:hover,
+      [data-theme="dark"] .attach-button:hover { background: #2a2a2e; }
+      [data-theme="dark"] .menu-heading,
+      [data-theme="dark"] .message-body { color: #e4e4e8; }
+      [data-theme="dark"] .tool-item small,
+      [data-theme="dark"] .welcome-copy,
+      [data-theme="dark"] .job-meta,
+      [data-theme="dark"] .status-card p { color: #9999a2; }
+      [data-theme="dark"] .menu-foot { border-color: var(--line); color: #8f8f98; }
+      [data-theme="dark"] .suggestions button { color: #c1c1c8; }
+      [data-theme="dark"] .user-message .message-body { background: #302c58; color: #eeeaff; }
+      [data-theme="dark"] .composer input::placeholder { color: #85858e; }
+      [data-theme="dark"] .modal { background: #242427; color: var(--ink); }
+      [data-theme="dark"] .modal p:not(.eyebrow),
+      [data-theme="dark"] .privacy-checks { color: #a5a5ad; }
+      [data-theme="dark"] .toast { background: #f2f2f4; color: #1d1d1f; }
+      .theme-button { border: 1px solid var(--line); background: transparent; border-radius: 9px; width: 32px; height: 32px; color: var(--muted); font-size: 16px; display: grid; place-items: center; }
+      .theme-button:hover { color: var(--violet); background: var(--violet-soft); }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="NimblePDF home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>Nimble<span class="brand-accent">PDF</span></span></a>
+        <div class="topbar-center"><span class="presence-dot"></span><span>Private workspace</span></div>
+        <div class="topbar-actions">
+          <button class="tool-trigger" id="tools-button" type="button" aria-expanded="false" aria-controls="tool-menu"><span class="spark" aria-hidden="true">✦</span> Tools <span class="chevron" aria-hidden="true">⌄</span></button>
+          <button class="theme-button" id="theme-button" type="button" aria-label="Switch to dark theme" title="Switch theme"><span aria-hidden="true">☾</span></button>
+          <button class="avatar" type="button" aria-label="Local workspace">T</button>
+          <div class="tool-menu" id="tool-menu" hidden>
+            <div class="menu-heading"><span>Quick tools</span><small>Choose a workflow</small></div>
+            <button type="button" class="tool-item" data-tool="inspect"><span class="tool-icon violet">⌕</span><span><strong>Inspect document</strong><small>Health, metadata & risks</small></span><span>→</span></button>
+            <button type="button" class="tool-item" data-tool="summarize"><span class="tool-icon blue">≡</span><span><strong>Summarize</strong><small>Understand the key points</small></span><span>→</span></button>
+            <button type="button" class="tool-item" data-tool="merge"><span class="tool-icon peach">＋</span><span><strong>Merge files</strong><small>Combine into one PDF</small></span><span>→</span></button>
+            <button type="button" class="tool-item" data-tool="split"><span class="tool-icon mint">⌗</span><span><strong>Split pages</strong><small>Extract the pages you need</small></span><span>→</span></button>
+            <div class="menu-foot">More tools are coming soon</div>
+          </div>
+        </div>
+      </header>
+
+      <main class="conversation" aria-labelledby="page-title">
+        <section class="welcome" id="welcome">
+          <div class="welcome-icon" aria-hidden="true">✦</div>
+          <p class="eyebrow">Your document companion</p>
+          <h1 id="page-title">What can I help you <em>do?</em></h1>
+          <p class="welcome-copy">Upload a document, then tell NimblePDF what you need in plain language.</p>
+        </section>
+
+        <section class="chat" aria-live="polite">
+          <div class="messages" id="messages">
+            <article class="message assistant-message">
+              <div class="message-avatar" aria-hidden="true">✦</div>
+              <div class="message-body"><p>Hi, I’m Nimble. I can inspect your PDFs locally and help you plan the next step. What would you like to work on?</p><div class="suggestions"><button type="button" data-suggestion="Check this PDF for anything I should know before sharing it">Check before sharing</button><button type="button" data-suggestion="Give me a quick summary of this document">Quick summary</button></div></div>
+            </article>
+          </div>
+          <div class="composer-wrap">
+            <form class="composer" id="command-form">
+              <button class="attach-button" type="button" id="browse-button" aria-label="Attach files" title="Attach files">＋</button>
+              <input id="file-input" type="file" accept=".pdf,application/pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" multiple hidden />
+              <label class="sr-only" for="goal-input">Tell Nimble what to do</label>
+              <input id="goal-input" type="text" maxlength="240" autocomplete="off" placeholder="Ask Nimble to work with your files..." />
+              <button class="send-button" type="submit" aria-label="Send message">↑</button>
+            </form>
+            <div class="composer-meta"><span><span class="lock">⌑</span> Files stay in this tab</span><span>⌘ Enter to send</span></div>
+          </div>
+        </section>
+
+        <section class="file-tray" id="file-tray" hidden>
+          <div class="tray-heading"><span>Attached files</span><div class="tray-actions"><button type="button" id="export-receipt">Export evidence receipt</button><button type="button" id="clear-queue">Clear all</button></div></div>
+          <div id="queue"></div>
+          <div class="evidence-note" id="evidence-note" hidden></div>
+        </section>
+        <section class="status-card" id="health-card" hidden>
+          <div class="status-icon" aria-hidden="true">✓</div><div><strong id="health-title">Inspection complete</strong><p id="health-copy"></p></div><div class="status-score"><strong id="health-score">—</strong><small>/100</small></div>
+          <div class="health-details" id="health-details"></div>
+        </section>
+        <p class="empty-queue" id="empty-queue" hidden></p>
+        <p class="command-status" id="command-status" hidden></p>
+      </main>
+      <footer class="footer"><span>NimblePDF <b>·</b> local-first document workspace</span><button type="button" class="privacy-link" id="privacy-button">How privacy works</button></footer>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      <dialog id="privacy-dialog" class="modal"><button class="modal-close" type="button" aria-label="Close">×</button><p class="eyebrow">Privacy by default</p><h2>Your files stay here.</h2><p>Files are read as browser <code>File</code> objects and inspected in memory. NimblePDF does not upload, persist, or modify your original document.</p><div class="privacy-checks"><span>Network requests</span><strong>0</strong><span>Bytes read</span><strong id="privacy-bytes">0 B</strong><span>Original changed</span><strong>No</strong></div></dialog>
+    </div>
+    <script type="module" src="/app/app.js"></script>
+  </body>
+</html>

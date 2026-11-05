@@ -1,0 +1,8 @@
+{
+  "name": "nimblepdf-local-engine",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test engine.test.js"
+  }
+}

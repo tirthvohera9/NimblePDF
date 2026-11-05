@@ -1,0 +1,4 @@
+[build]
+  command = "node scripts/build-static.mjs"
+  publish = "dist"
+
