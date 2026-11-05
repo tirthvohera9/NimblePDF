@@ -24,6 +24,7 @@ the loopback interface only.
 - Verified local merge, split, and rotate operations through the loopback server
 - Lossless content-stream compression with verified output
 - Poppler page thumbnails in the local preview
+- One-click local “Safe to send?” risk ledger for PII, active content, metadata, and accessibility
 - Verified metadata sanitization, local text analysis, accessibility preflight, and browser previews
 - Local OCR for scanned pages using Tesseract and Poppler
 - Rasterized, verified term redaction that removes the original text layer

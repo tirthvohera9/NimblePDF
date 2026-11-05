@@ -108,6 +108,28 @@ async function executeOperation(operation, prompt) {
     addMessage("Merge needs at least two inspected PDFs. Attach another file and try again.");
     return;
   }
+  async function safeSendCheck() {
+    const ready = jobs.filter((job) => job.report && job.file);
+    if (ready.length !== 1) {
+      addMessage("Safe-to-send checks work on one inspected PDF at a time.");
+      return;
+    }
+    try {
+      showToast("Checking share-readiness locally…");
+      const response = await fetch("/api/safe-send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: await encodeFile(ready[0].file) }) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message || "Share-readiness analysis failed.");
+      const report = payload.report;
+      const summary = report.riskSummary;
+      const topRisks = report.risks.slice(0, 4).map((risk) => `${risk.label} (${risk.severity})`).join(", ");
+      addMessage(report.safeToSend
+        ? "Safe to send: no share-blocking risks were found in the local evidence check."
+        : `Not ready to send. I found ${report.riskCount} risk${report.riskCount === 1 ? "" : "s"} (${summary.high} high, ${summary.medium} medium, ${summary.low} low): ${topRisks}.`);
+      showToast(report.safeToSend ? "Share check passed." : "Review risks before sharing.");
+    } catch (error) {
+      addMessage(`I could not complete the share check: ${error instanceof Error ? error.message : "unknown local analysis error"}`);
+    }
+  }
   if ((operation === "split" || operation === "rotate" || operation === "sanitize-metadata" || operation === "ocr" || operation === "redact") && ready.length !== 1) {
     addMessage(`${operation[0].toUpperCase() + operation.slice(1)} works on one inspected PDF at a time. Keep one file attached and specify pages, for example “${operation} pages 1-3”.`);
     return;
@@ -199,6 +221,8 @@ async function runPrompt(text) {
   if (selectedTool === "inspect") {
     const ready = jobs.filter((job) => job.report);
     addMessage(ready.length ? `I’ve inspected ${ready.length} file${ready.length === 1 ? "" : "s"} locally. The findings are shown below.` : "I’m still reading your files locally. I’ll share the findings here when they’re ready.");
+  } else if (selectedTool === "safe-send") {
+    await safeSendCheck();
   } else if (["merge", "split", "rotate", "compress", "sanitize-metadata", "ocr", "redact"].includes(selectedTool)) {
     await executeOperation(selectedTool, prompt);
   } else if (selectedTool === "summarize") {

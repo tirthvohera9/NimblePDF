@@ -17,6 +17,7 @@ from security.files import FileLimits
 from pdf_ops import PdfOperationError, analyze, compress, merge, result, sanitize_metadata, transform
 from preview_ops import thumbnails
 from ocr_ops import ocr_pdf, redact_terms
+from safe_send import safe_send_report
 
 ROOT = Path(__file__).resolve().parent
 MAX_BYTES = FileLimits().max_bytes
@@ -219,6 +220,18 @@ def thumbnails_payload(body: dict) -> tuple[int, dict]:
         return 422, api_error(exc.code, str(exc))
 
 
+def safe_send_payload(body: dict) -> tuple[int, dict]:
+    if not isinstance(body, dict) or not isinstance(body.get("data"), str):
+        return 400, api_error("INVALID_FILE", "base64 data is required.")
+    try:
+        data = base64.b64decode(body["data"], validate=True)
+        return 200, {"report": safe_send_report(data)}
+    except (ValueError, base64.binascii.Error):
+        return 400, api_error("INVALID_FILE", "File data must be valid base64.")
+    except PdfOperationError as exc:
+        return 422, api_error(exc.code, str(exc))
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, status: int, payload: object, content_type: str = "application/json") -> None:
         data = payload if isinstance(payload, bytes) else (
@@ -251,6 +264,7 @@ class Handler(BaseHTTPRequestHandler):
                     {"name": "operate", "method": "POST", "path": "/api/operate"},
                     {"name": "analyze", "method": "POST", "path": "/api/analyze"},
                     {"name": "thumbnails", "method": "POST", "path": "/api/thumbnails"},
+                    {"name": "safe-send", "method": "POST", "path": "/api/safe-send"},
                 ],
                 "states": ["loading", "error", "success"],
                 "plan": {
@@ -266,6 +280,7 @@ class Handler(BaseHTTPRequestHandler):
                     "response": {"analysis": "text and accessibility checks"},
                 },
                 "thumbnails": {"request": {"data": "base64 PDF"}, "response": {"thumbnails": "PNG data array"}},
+                "safeSend": {"request": {"data": "base64 PDF"}, "response": {"report": "share-readiness risk ledger"}},
             })
         if path in ("/", "/index.html"):
             path = "/app/index.html"
@@ -285,7 +300,7 @@ class Handler(BaseHTTPRequestHandler):
         self.do_GET()
 
     def do_POST(self) -> None:
-        if urlparse(self.path).path not in ("/api/plan", "/api/run", "/api/operate", "/api/analyze", "/api/thumbnails"):
+        if urlparse(self.path).path not in ("/api/plan", "/api/run", "/api/operate", "/api/analyze", "/api/thumbnails", "/api/safe-send"):
             return self._send(404, {"error": "Not found"})
         try:
             raw_length = self.headers.get("Content-Length")
@@ -302,6 +317,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(status, payload)
             if urlparse(self.path).path == "/api/thumbnails":
                 status, payload = thumbnails_payload(body)
+                return self._send(status, payload)
+            if urlparse(self.path).path == "/api/safe-send":
+                status, payload = safe_send_payload(body)
                 return self._send(status, payload)
             if urlparse(self.path).path == "/api/operate":
                 status, payload = operation_payload(body)
