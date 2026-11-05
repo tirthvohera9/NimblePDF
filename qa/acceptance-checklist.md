@@ -1,4 +1,4 @@
-# NimblePDF MVP acceptance checklist
+# NimblePDF acceptance checklist
 
 Run `.\qa\smoke-test.ps1 -BaseUrl http://127.0.0.1:3000` after starting the
 local app. Attach the command output or request/response evidence to each item.

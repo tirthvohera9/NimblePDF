@@ -1,4 +1,4 @@
-# NimblePDF MVP QA strategy
+# NimblePDF QA strategy
 
 This directory is the executable, dependency-free QA gate for the MVP. It tests
 observable contracts rather than implementation details.

@@ -1,4 +1,4 @@
-"""Dependency-free local development server and MVP JSON contract."""
+"""Dependency-light local development server and JSON contract."""
 
 from __future__ import annotations
 
@@ -131,7 +131,7 @@ def plan_payload(body: dict) -> tuple[int, dict]:
         "steps": steps,
         "totalEstimate": round(sum(step["estimate"] for step in steps), 2),
         "executable": False,
-        "note": "This MVP plans work locally; PDF rewriting is not enabled yet.",
+        "note": "Planning is separate from execution. Use /api/operate for verified merge, split, rotate, or sanitization.",
     }
 
 
@@ -279,7 +279,7 @@ class Handler(BaseHTTPRequestHandler):
             if urlparse(self.path).path == "/api/run":
                 if status != 200:
                     return self._send(status, payload)
-                return self._send(409, api_error("EXECUTION_UNAVAILABLE", "PDF rewriting is not enabled in the local engine."))
+                return self._send(409, api_error("EXECUTION_UNAVAILABLE", "Use /api/operate for the verified local PDF operations."))
         except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
             status, payload = 400, api_error("INVALID_JSON", "Request body must contain valid UTF-8 JSON.")
         self._send(status, payload)

@@ -114,9 +114,19 @@ def sanitize_metadata(data: bytes) -> bytes:
     reader = _reader(data)
     writer = PdfWriter()
     for page in reader.pages:
+        for key in ("/Annots", "/AA", "/OpenAction"):
+            if key in page:
+                del page[key]
         writer.add_page(page)
+    for key in ("/OpenAction", "/AA", "/Names"):
+        if key in writer._root_object:
+            del writer._root_object[key]
     writer.add_metadata({})
-    return _write(writer)
+    output = _write(writer)
+    forbidden = (b"/JavaScript", b"/JS", b"/AA", b"/OpenAction", b"/EmbeddedFiles", b"/Annots")
+    if any(marker in output for marker in forbidden):
+        raise PdfOperationError("SANITIZE_VERIFY_FAILED", "Active content or annotations remained after sanitization.")
+    return output
 
 
 def result(data: bytes, name: str) -> dict:
