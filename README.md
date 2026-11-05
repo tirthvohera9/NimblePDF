@@ -22,6 +22,8 @@ the loopback interface only.
 - Local SHA-256 fingerprints and duplicate-content detection
 - Downloadable evidence receipts containing metadata, findings, and privacy attestations
 - Verified local merge, split, and rotate operations through the loopback server
+- Lossless content-stream compression with verified output
+- Poppler page thumbnails in the local preview
 - Verified metadata sanitization, local text analysis, accessibility preflight, and browser previews
 - Local OCR for scanned pages using Tesseract and Poppler
 - Rasterized, verified term redaction that removes the original text layer

@@ -81,6 +81,17 @@ def transform(data: bytes, operation: str, pages: list[int] | None = None, degre
     raise PdfOperationError("UNSUPPORTED_OPERATION", f"Operation '{operation}' is not executable.")
 
 
+def compress(data: bytes) -> bytes:
+    reader = _reader(data)
+    writer = PdfWriter()
+    for page in reader.pages:
+        page.compress_content_streams()
+        writer.add_page(page)
+    writer.add_metadata({})
+    output = _write(writer)
+    return output if len(output) < len(data) else data
+
+
 def analyze(data: bytes) -> dict:
     reader = _reader(data)
     text_by_page = []

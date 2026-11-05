@@ -14,7 +14,8 @@ from urllib.parse import urlparse
 
 from intelligence import parse_workflow_intent, recommend_pdf_health
 from security.files import FileLimits
-from pdf_ops import PdfOperationError, analyze, merge, result, sanitize_metadata, transform
+from pdf_ops import PdfOperationError, analyze, compress, merge, result, sanitize_metadata, transform
+from preview_ops import thumbnails
 from ocr_ops import ocr_pdf, redact_terms
 
 ROOT = Path(__file__).resolve().parent
@@ -140,8 +141,8 @@ def operation_payload(body: dict) -> tuple[int, dict]:
     if not isinstance(body, dict):
         return 400, api_error("INVALID_BODY", "Request body must be a JSON object.")
     operation = body.get("operation")
-    if operation not in {"merge", "split", "rotate", "sanitize-metadata", "ocr", "redact"}:
-        return 400, api_error("UNSUPPORTED_OPERATION", "operation must be merge, split, rotate, sanitize-metadata, ocr, or redact.")
+    if operation not in {"merge", "split", "rotate", "compress", "sanitize-metadata", "ocr", "redact"}:
+        return 400, api_error("UNSUPPORTED_OPERATION", "operation must be merge, split, rotate, compress, sanitize-metadata, ocr, or redact.")
     raw_files = body.get("files")
     if not isinstance(raw_files, list) or not raw_files:
         return 400, api_error("INVALID_FILES", "files must be a non-empty array.")
@@ -168,6 +169,9 @@ def operation_payload(body: dict) -> tuple[int, dict]:
         elif operation == "sanitize-metadata":
             output = sanitize_metadata(documents[0][1])
             output_name = "nimblepdf-sanitized.pdf"
+        elif operation == "compress":
+            output = compress(documents[0][1])
+            output_name = "nimblepdf-compressed.pdf"
         elif operation == "ocr":
             output = ocr_pdf(documents[0][1])
             output_name = "nimblepdf-ocr.pdf"
@@ -203,6 +207,18 @@ def analyze_payload(body: dict) -> tuple[int, dict]:
         return 422, api_error(exc.code, str(exc))
 
 
+def thumbnails_payload(body: dict) -> tuple[int, dict]:
+    if not isinstance(body, dict) or not isinstance(body.get("data"), str):
+        return 400, api_error("INVALID_FILE", "base64 data is required.")
+    try:
+        data = base64.b64decode(body["data"], validate=True)
+        return 200, {"thumbnails": thumbnails(data)}
+    except (ValueError, base64.binascii.Error):
+        return 400, api_error("INVALID_FILE", "File data must be valid base64.")
+    except PdfOperationError as exc:
+        return 422, api_error(exc.code, str(exc))
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, status: int, payload: object, content_type: str = "application/json") -> None:
         data = payload if isinstance(payload, bytes) else (
@@ -234,6 +250,7 @@ class Handler(BaseHTTPRequestHandler):
                     {"name": "run", "method": "POST", "path": "/api/run"},
                     {"name": "operate", "method": "POST", "path": "/api/operate"},
                     {"name": "analyze", "method": "POST", "path": "/api/analyze"},
+                    {"name": "thumbnails", "method": "POST", "path": "/api/thumbnails"},
                 ],
                 "states": ["loading", "error", "success"],
                 "plan": {
@@ -241,13 +258,14 @@ class Handler(BaseHTTPRequestHandler):
                     "response": {"intent": "object", "steps": "array", "totalEstimate": "number"},
                 },
                 "operate": {
-                    "request": {"operation": "merge|split|rotate|sanitize-metadata|ocr|redact", "files": "base64 PDF array", "pages": "integer array", "terms": "string array"},
+                    "request": {"operation": "merge|split|rotate|compress|sanitize-metadata|ocr|redact", "files": "base64 PDF array", "pages": "integer array", "terms": "string array"},
                     "response": {"verified": "boolean", "output": "base64 PDF with sha256"},
                 },
                 "analyze": {
                     "request": {"name": "string", "data": "base64 PDF"},
                     "response": {"analysis": "text and accessibility checks"},
                 },
+                "thumbnails": {"request": {"data": "base64 PDF"}, "response": {"thumbnails": "PNG data array"}},
             })
         if path in ("/", "/index.html"):
             path = "/app/index.html"
@@ -267,7 +285,7 @@ class Handler(BaseHTTPRequestHandler):
         self.do_GET()
 
     def do_POST(self) -> None:
-        if urlparse(self.path).path not in ("/api/plan", "/api/run", "/api/operate", "/api/analyze"):
+        if urlparse(self.path).path not in ("/api/plan", "/api/run", "/api/operate", "/api/analyze", "/api/thumbnails"):
             return self._send(404, {"error": "Not found"})
         try:
             raw_length = self.headers.get("Content-Length")
@@ -281,6 +299,9 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length).decode("utf-8"))
             if urlparse(self.path).path == "/api/analyze":
                 status, payload = analyze_payload(body)
+                return self._send(status, payload)
+            if urlparse(self.path).path == "/api/thumbnails":
+                status, payload = thumbnails_payload(body)
                 return self._send(status, payload)
             if urlparse(self.path).path == "/api/operate":
                 status, payload = operation_payload(body)

@@ -3,7 +3,7 @@ import unittest
 
 from pypdf import PdfWriter
 
-from server import analyze_payload, operation_payload
+from server import analyze_payload, operation_payload, thumbnails_payload
 
 
 def pdf_bytes(page_count: int) -> bytes:
@@ -48,6 +48,18 @@ class PdfOperationTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("accessibility", payload["analysis"])
         self.assertEqual(payload["analysis"]["pageCount"], 1)
+
+    def test_compress_verifies_output(self):
+        file = {"name": "input.pdf", "data": base64.b64encode(pdf_bytes(1)).decode()}
+        status, payload = operation_payload({"operation": "compress", "files": [file]})
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["verified"])
+
+    def test_thumbnails_return_png_data(self):
+        file = {"data": base64.b64encode(pdf_bytes(1)).decode()}
+        status, payload = thumbnails_payload(file)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["thumbnails"][0]["mime"], "image/png")
 
 
 if __name__ == "__main__":

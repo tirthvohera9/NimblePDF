@@ -199,7 +199,7 @@ async function runPrompt(text) {
   if (selectedTool === "inspect") {
     const ready = jobs.filter((job) => job.report);
     addMessage(ready.length ? `I’ve inspected ${ready.length} file${ready.length === 1 ? "" : "s"} locally. The findings are shown below.` : "I’m still reading your files locally. I’ll share the findings here when they’re ready.");
-  } else if (["merge", "split", "rotate", "sanitize-metadata", "ocr", "redact"].includes(selectedTool)) {
+  } else if (["merge", "split", "rotate", "compress", "sanitize-metadata", "ocr", "redact"].includes(selectedTool)) {
     await executeOperation(selectedTool, prompt);
   } else if (selectedTool === "summarize") {
     const ready = jobs.filter((job) => job.report && job.file);
@@ -244,6 +244,14 @@ queue.addEventListener("click", (event) => {
     if (!job?.file) return;
     $("#preview-title").textContent = job.name;
     $("#preview-frame").src = URL.createObjectURL(job.file);
+    $("#thumbnail-strip").innerHTML = "<span>Rendering page thumbnails locally…</span>";
+    encodeFile(job.file).then((data) => fetch("/api/thumbnails", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data }) }))
+      .then((response) => response.json())
+      .then((payload) => {
+        if (!payload.thumbnails) throw new Error(payload.message || "Thumbnail rendering failed.");
+        $("#thumbnail-strip").innerHTML = payload.thumbnails.map((thumbnail) => `<img src="data:${thumbnail.mime};base64,${thumbnail.data}" alt="Page ${thumbnail.page} thumbnail" />`).join("");
+      })
+      .catch((error) => { $("#thumbnail-strip").textContent = error.message; });
     $("#preview-dialog").showModal();
     return;
   }
